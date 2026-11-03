@@ -1,0 +1,22 @@
+{"op":"card","title":"How a jet hovers","side":"right"}
+{"op":"say","text":"Pushing air down pushes the jet up."}
+{"op":"pin","x":420,"y":380,"text":"1 · Lift fan","dx":-160,"dy":-80}
+{"op":"pin","x":760,"y":400,"text":"2 · Swivel nozzle","dx":90,"dy":90}
+{"op":"box","x":300,"y":300,"w":600,"h":180,"text":"the F-35B"}
+{"op":"svg","viewBox":"0 0 400 170","markup":"<path d='M30 90 L300 80 L370 95 L300 105 L30 100 Z' stroke='#2b2a27' stroke-width='3' fill='#e6f0fc'/><rect x='110' y='70' width='40' height='14' stroke='#2b2a27' stroke-width='2' fill='#fdeede'/><path d='M130 105 L130 150' stroke='#3d7fd9' stroke-width='4' fill='none'/><path d='M285 105 L285 150' stroke='#e8833a' stroke-width='4' fill='none'/><text x='95' y='165' font-size='14'>air down</text><text x='255' y='165' font-size='14'>thrust down</text>","caption":"Side view"}
+{"op":"diagram","id":"d1"}
+{"op":"node","d":"d1","id":"a","label":"Engine","sub":"power","col":0,"row":0,"tone":"blue"}
+{"op":"node","d":"d1","id":"b","label":"Lift fan","col":1,"row":0,"tone":"orange"}
+{"op":"node","d":"d1","id":"c","label":"Nozzle","col":1,"row":1,"tone":"orange"}
+{"op":"node","d":"d1","id":"d","label":"Hover","col":2,"row":0,"tone":"green"}
+{"op":"edge","d":"d1","from":"a","to":"b","label":"shaft"}
+{"op":"edge","d":"d1","from":"a","to":"c"}
+{"op":"edge","d":"d1","from":"b","to":"d"}
+{"op":"edge","d":"d1","from":"c","to":"d"}
+{"op":"say","text":"Steady hover means lift exactly balances weight."}
+{"op":"step","n":1,"text":"Doors open above and below the fan"}
+{"op":"step","n":2,"text":"Rear nozzle swivels 90° down"}
+{"op":"event","t":"2001","label":"X-35B first hover"}
+{"op":"event","t":"2008","label":"F-35B flies"}
+{"op":"event","t":"2015","label":"In service"}
+{"op":"note","text":"Lift = weight → it stays put","tone":"green"}

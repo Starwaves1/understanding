@@ -1,0 +1,30 @@
+[project]
+name = "understanding"
+version = "0.1.0"
+description = "Real-time on-screen visual explanations driven by headless Claude Code"
+authors = [
+    { name = "Garrett Simko", email = "garrettsimko@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pyobjc-core>=13.0",
+    "pyobjc-framework-applicationservices>=13.0",
+    "pyobjc-framework-cocoa>=13.0",
+    "pyobjc-framework-quartz>=13.0",
+    "pyobjc-framework-webkit>=13.0",
+]
+
+[project.scripts]
+understanding = "understanding:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

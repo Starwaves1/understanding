@@ -1,0 +1,3 @@
+### svg — a hand-drawn illustration in the card
+`{"op":"svg","viewBox":"0 0 400 220","markup":"<path d='M40 150 L360 150' stroke='#2b2a27' stroke-width='3' fill='none'/>...","caption":"Side view"}`
+For physical things (machines, anatomy, circuits, layouts) where boxes-and-arrows can't show shape. Simple shapes only: path, line, rect, circle, ellipse, polygon, text (font-size ≥ 12). Use single quotes inside markup. Stroke #2b2a27, fills from #3d7fd9 #e8833a #3a9d5d #f0b429 #e6f0fc #fdeede. Keep it under ~25 elements; strokes animate as if being drawn, in document order — order elements in the order you'd sketch them.

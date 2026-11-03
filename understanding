@@ -1,0 +1,5 @@
+#!/bin/sh
+# Launcher. Runs from source via PYTHONPATH because iCloud-synced folders can
+# set the "hidden" flag on uv's editable .pth file, which Python 3.13 skips.
+here="$(cd "$(dirname "$0")" && pwd)"
+cd "$here" && uv sync -q && PYTHONPATH="$here/src" exec uv run --no-sync python -m understanding "$@"
