@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 
 class Renderer(Protocol):
-    def begin(self, question: str, frame: tuple[int, int] | None) -> None: ...
+    def begin(self, question: str, frame: tuple[int, int] | None, anchors: list[dict]) -> None: ...
     def apply(self, op: Op) -> None: ...
     def end(self, error: str | None) -> None: ...
 
@@ -97,8 +97,9 @@ class Session:
     def _answer(self, job: _Job) -> None:
         t0 = time.monotonic()
         snap = job.snapshot.result() if job.snapshot else context.Contribution()
+        log.info("context ready after %.2fs (%d images)", time.monotonic() - t0, len(snap.images))
         frame = (snap.images[0].width, snap.images[0].height) if snap.images else None
-        self.renderer.begin(job.question, frame)
+        self.renderer.begin(job.question, frame, snap.anchors)
         turn = Turn(job.question, snap.images, snap.notes)
         parser = OpStreamParser()
         first = None

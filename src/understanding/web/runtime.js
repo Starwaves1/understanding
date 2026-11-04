@@ -34,6 +34,7 @@
     begin(turn) {
       this.clear();
       this.frame = { imgW: turn.imgW || innerWidth, imgH: turn.imgH || innerHeight };
+      this.anchors = turn.anchors || [];
       this.status(turn.question ? `“${turn.question}”` : "", true);
     },
 
@@ -103,6 +104,45 @@
       }
       (this.state.labels ||= []).push(best);
       return best;
+    },
+
+    // Find quoted on-screen text among the OCR anchors. Returns one viewport
+    // rect per covered line (so multi-line quotes highlight like a marker),
+    // or null. Falls back to the longest matching prefix of the quote, since
+    // the model sometimes paraphrases the tail.
+    findQuote(quote) {
+      const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const lines = (this.anchors || []).map((a) => ({ a, n: norm(a.t) })).filter((l) => l.n);
+      if (!lines.length || !quote) return null;
+      let full = "";
+      for (const l of lines) {
+        l.start = full.length;
+        full += l.n + " ";
+        l.end = l.start + l.n.length;
+      }
+      const words = norm(String(quote)).split(" ");
+      const padded = " " + full; // match whole words only: "in the" must not hit "within the"
+      const minWords = words.length < 3 ? words.length : Math.max(3, Math.ceil(words.length / 2));
+      let from = -1, len = 0;
+      for (let k = words.length; k >= minWords; k--) {
+        const q = words.slice(0, k).join(" ");
+        from = padded.indexOf(" " + q + " "); // index in padded of the space = q's index in full
+        if (from >= 0) {
+          len = k === words.length ? q.length : Math.min(full.length - from, norm(String(quote)).length);
+          break;
+        }
+      }
+      if (from < 0) return null;
+      const to = from + len;
+      const rects = [];
+      for (const l of lines) {
+        if (l.end <= from || l.start >= to) continue;
+        // Approximate the covered part of the line by character position.
+        const a = l.a, n = l.n.length || 1;
+        const f0 = Math.max(0, from - l.start) / n, f1 = Math.min(n, to - l.start) / n;
+        rects.push({ x: this.sx(a.x + a.w * f0), y: this.sy(a.y), w: this.sx(a.w * (f1 - f0)), h: this.sy(a.h) });
+      }
+      return rects.length ? rects : null;
     },
 
     sx(x) {

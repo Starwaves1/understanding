@@ -39,9 +39,22 @@ Config: `~/.config/understanding/config.toml`, keys = fields of `config.Config`.
 - `--setting-sources "" --strict-mcp-config --tools ""`: user hooks/plugins/CLAUDE.md inject context that breaks the JSONL protocol and add startup time.
 - Interrupt = `{"type":"control_request","request":{"subtype":"interrupt"}}` on stdin; returns `result` with subtype `error_during_execution`, and the process stays usable for the next turn.
 - Screenshot downscaled to max 1280 px (`context/screen.py`); coordinates in ops are in that image's pixels and mapped by `U.sx/U.sy`.
+- Live (2026-11-03, Retina MacBook, Wikipedia in Chrome): screenshot 0.22–0.27 s, OCR (Vision accurate) +0.1–0.4 s, both done at hotkey time while the user types; first op 0.68–0.78 s after Enter, full answer 1.2–4 s. One outlier: first op 4.8 s (API variance; same question again was 0.74 s).
+- OCR: Vision `accurate` warm is 0.08–0.15 s on 1280 px; the first run after install took 25.7 s (one-time model compile, cached by macOS across processes). `fast` mode garbles words ("Wi\ufffdpadia"), so quotes wouldn't match. Budget 1.5 s, then continue without anchors.
+
+## Grounding
+
+Models say WHAT to point at well and WHERE poorly. `box`/`pin` take `"quote"`: exact on-screen words, located in OCR anchors (`context/ocr.py` → `Contribution.anchors` → `U.findQuote`). Before this, Haiku's highlight boxes landed a few lines off and cut through text; with quotes they sit on the real sentence. x/y remains for non-text (parts of an image), where Haiku's points were good (turbofan parts landed on the numbered labels).
 
 ## Scars
 
 - 2026-11-03: CSS `zoom` to shrink an overflowing card also shrank its `max-height`, so captions spilled outside the card. Fit uses `transform: scale` on the unconstrained layout height instead.
 - 2026-11-03: card side was checked only when a pin was added, while the card was still title-only, so it later grew over the pins. The check now runs on every card resize (ResizeObserver).
 - 2026-11-03: headless Chrome screenshots with `--virtual-time-budget=6000` caught animations mid-flight and looked like broken renders. Use 20000.
+- 2026-11-03: the prompt panel used `NSVisualEffectView` HUD material; over a dark app it was effectively invisible, so the user thought the app didn't work. It's now a solid dark pill with an amber border.
+- 2026-11-03: Return in the prompt field never reached `control:textView:doCommandBySelector:` (PyObjC delegate). Submit uses the field's target/action (`submit:`); Esc uses `cancelOperation:` on the panel.
+- 2026-11-03: `NSApp.activateIgnoringOtherApps_` + `prevApp.activateWithOptions_` (deprecated under cooperative activation) left keyboard focus in limbo after the panel closed. The panel is now non-activating (Spotlight pattern): it takes the keyboard without activating the app, and focus returns by itself.
+- 2026-11-03: something on Garrett's Mac emits phantom Shift flag changes; the ⌃⌥ release arrived as `{shift}` and cancelled the tap. Shift is ignored unless it's part of the chord (`test_phantom_shift_is_ignored`).
+- 2026-11-03: NSEvent global keyDown monitors (and later a listen-only CGEventTap) never saw synthetic Esc (`cliclick`) while Chrome was frontmost, though modifier changes always arrived. No Secure Input holder was found. Unresolved whether a hardware Esc behaves the same; so Esc is not the only dismiss path: a click anywhere (event-tap mouse-down) and Esc inside the prompt box both clear the drawing. The hotkey now uses the event tap instead of NSEvent monitors.
+- 2026-11-03: Esc mid-answer cleared the overlay, then ops already queued for the main thread redrew it. `OverlayRenderer` stamps each call with the overlay generation; `clear()` bumps it.
+- 2026-11-03 (testing): synthetic modifier combos from `cliclick` sent while driving the live app put Chrome into full screen. When driving the app on the user's Mac, send only the ⌃⌥ tap, plain text, Return, and Esc. Also, never name a probe script after a stdlib module (`bisect.py` broke PyObjC's import chain).

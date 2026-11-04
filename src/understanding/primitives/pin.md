@@ -1,3 +1,4 @@
 ### pin — label something ON THE USER'S SCREEN
 `{"op":"pin","x":812,"y":344,"text":"2 · Compressor","dx":80,"dy":-60}`
-`x`,`y` = the exact point on the screenshot (in screenshot pixels) the label refers to. The label floats at (x+dx, y+dy) with a leader line back to the point; choose dx/dy so labels don't overlap each other or the thing itself (default 70,-60). ≤ 4 words. Use pins whenever the answer is about something visible on screen — they are the most magical part.
+`{"op":"pin","quote":"bypass ratio","text":"key term"}`
+Points at the exact spot in the screenshot (screenshot pixels) with a leader line to a floating label at (x+dx, y+dy) (default 70,-60; pick dx/dy so labels don't overlap). If the target is TEXT on screen, use `quote` (exact on-screen words) instead of x/y — it is located precisely. Label ≤ 4 words. Pins on the real thing are the most magical part: use them whenever the answer is about something visible.

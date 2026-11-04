@@ -82,7 +82,7 @@ def _ask(cfg: config.Config, args: argparse.Namespace) -> None:
         def __init__(self) -> None:
             self.t0 = time.monotonic()
 
-        def begin(self, question, frame):
+        def begin(self, question, frame, anchors):
             print(f"# {question!r} frame={frame}", file=sys.stderr)
 
         def apply(self, op):

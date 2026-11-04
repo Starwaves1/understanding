@@ -23,7 +23,7 @@ class Recorder:
     def __init__(self):
         self.ops, self.done = [], threading.Event()
 
-    def begin(self, q, frame):
+    def begin(self, q, frame, anchors):
         self.ops.append(("begin", q, frame))
 
     def apply(self, op):

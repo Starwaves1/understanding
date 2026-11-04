@@ -7,7 +7,10 @@ U.css(`
 .pin-dot { fill: #fff; stroke: #1d1d1b; stroke-width: 2.5; animation: fade .2s both; }
 `);
 U.register("pin", (op, U) => {
-  const x = U.sx(+op.x), y = U.sy(+op.y);
+  // A quote pins the real on-screen text; otherwise trust the model's point.
+  const hit = op.quote ? U.findQuote(op.quote) : null;
+  if (!hit && op.x == null) return console.warn("pin: quote not found on screen", op.quote);
+  const x = hit ? hit[0].x + hit[0].w / 2 : U.sx(+op.x), y = hit ? hit[0].y + hit[0].h / 2 : U.sy(+op.y);
   const dx = op.dx != null ? U.sx(+op.dx) : 70, dy = op.dy != null ? U.sy(+op.dy) : -60;
   const label = U.el("div", `pin-label tone-${op.tone || "green"}`, U.screenLayer(), op.text);
   U.mark({ x: x - 8, y: y - 8, w: 16, h: 16 });

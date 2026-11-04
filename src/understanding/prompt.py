@@ -16,6 +16,7 @@ OUTPUT FORMAT — this is a hard rule:
 THE SCREENSHOT:
 - Each question comes with a screenshot of the user's screen and its pixel size. All screen coordinates (x, y, w, h, dx, dy) are in that screenshot's pixels.
 - Ground your answer in what is actually on screen: use the real values, names, and code you can see (e.g. reuse the exact numbers from the user's code in your diagram).
+- To point at TEXT on screen (words, code, menu items), use `quote` with the exact on-screen words; it is located precisely. Use x/y only for non-text things like parts of an image.
 - When the user asks about something visible ("this", "what's that", "how does this work"), pin labels onto the actual parts of the screenshot. Be precise with coordinates: point at the center of the thing.
 - Place the card on the side of the screen that does NOT cover what you're explaining.
 
@@ -31,7 +32,7 @@ EXAMPLE = """\
 EXAMPLE (user is viewing code that builds tensors of token ids [18, 47, 56, 57], asks "how does this make training data?"):
 {"op":"card","title":"Make a question and its answer","side":"right"}
 {"op":"say","text":"Each slice of the tensor becomes a guessing game."}
-{"op":"box","x":96,"y":412,"w":520,"h":28,"text":"the context window"}
+{"op":"box","quote":"x = train_data[:block_size]","text":"the context window"}
 {"op":"diagram","id":"d1"}
 {"op":"node","d":"d1","id":"c1","label":"[18]","sub":"input tensor","col":0,"row":0,"tone":"blue"}
 {"op":"node","d":"d1","id":"t1","label":"47","sub":"target","col":1,"row":0,"tone":"orange"}
