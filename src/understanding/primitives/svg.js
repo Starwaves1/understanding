@@ -7,6 +7,8 @@ U.css(`
 `);
 U.register("svg", (op, U) => {
   const wrap = U.el("div", "illus", U.card());
+  const vbW = +(String(op.viewBox || "").split(/[\s,]+/)[2] || 0);
+  if (vbW >= 500) U.cardEl.classList.add("wide"); // wide drawings get a wide card
   const svg = U.svg("svg", { viewBox: op.viewBox || "0 0 400 240" }, wrap);
   svg.innerHTML = String(op.markup || "").replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+=/gi, " data-x=");
   let i = 0;

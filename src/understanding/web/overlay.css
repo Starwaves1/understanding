@@ -15,6 +15,8 @@
   --gray-bg: #efede7;
   --accent: #f0b429;
   --hand: "Kalam", "Chalkboard SE", "Marker Felt", "Comic Sans MS", cursive;
+  /* Height of the menu bar / camera notch band; set from Python per screen. */
+  --safe-top: 38px;
   --sans: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
 }
 
@@ -50,7 +52,7 @@ body {
 /* ---------- status pill ---------- */
 #status {
   position: fixed;
-  top: 14px;
+  top: calc(var(--safe-top) + 10px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -97,7 +99,7 @@ body {
 /* ---------- explainer card ---------- */
 .card {
   position: fixed;
-  top: 72px;
+  top: calc(var(--safe-top) + 56px);
   width: var(--card-w);
   box-sizing: border-box;
   padding: 22px 24px 16px;
@@ -105,6 +107,9 @@ body {
   border-radius: 16px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 24px 60px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
   animation: card-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.card.wide {
+  --card-w: 640px;
 }
 @keyframes card-in {
   from {

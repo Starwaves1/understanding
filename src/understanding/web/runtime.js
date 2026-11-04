@@ -31,6 +31,10 @@
       this.fit();
     },
 
+    setSafeTop(px) {
+      document.documentElement.style.setProperty("--safe-top", `${px}px`);
+    },
+
     begin(turn) {
       this.clear();
       this.frame = { imgW: turn.imgW || innerWidth, imgH: turn.imgH || innerHeight };
