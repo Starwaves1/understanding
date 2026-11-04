@@ -122,6 +122,7 @@ class Hotkey:
             Q.CGEventTapEnable(self._port, True)
             return
         if etype == Q.kCGEventLeftMouseDown:
+            self.tap.key()  # ⌃⌥-click is a chord, not a tap
             if self.on_click:
                 self.on_click()
             return

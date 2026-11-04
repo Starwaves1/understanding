@@ -121,10 +121,12 @@
         l.end = l.start + l.n.length;
       }
       const words = norm(String(quote)).split(" ");
+      const padded = " " + full; // match whole words only: "in the" must not hit "within the"
+      const minWords = words.length < 3 ? words.length : Math.max(3, Math.ceil(words.length / 2));
       let from = -1, len = 0;
-      for (let k = words.length; k >= Math.min(2, words.length); k--) {
+      for (let k = words.length; k >= minWords; k--) {
         const q = words.slice(0, k).join(" ");
-        from = full.indexOf(q);
+        from = padded.indexOf(" " + q + " "); // index in padded of the space = q's index in full
         if (from >= 0) {
           len = k === words.length ? q.length : Math.min(full.length - from, norm(String(quote)).length);
           break;

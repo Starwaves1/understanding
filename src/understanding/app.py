@@ -64,12 +64,16 @@ class Controller(NSObject):
         self.overlay = Overlay(prims)
         self.session = Session(brain, providers, OverlayRenderer(self.overlay))
         self.panel = PromptPanel(on_submit=self.submit, on_escape=self.dismiss)
-        self.hotkey = Hotkey(
-            cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape, on_click=self.escape
-        )
+        check_accessibility()  # before the tap, so the permission prompt can appear
+        try:
+            self.hotkey = Hotkey(
+                cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape, on_click=self.escape
+            )
+        except RuntimeError:
+            log.exception("no global hotkey; use the ◐ menu-bar item to ask")
+            self.hotkey = None
         self._build_menu()
         self.session.start()
-        check_accessibility()
         log.info("ready: tap %s to ask (brain=%s %s)", "+".join(cfg.hotkey), cfg.brain, cfg.brain_options)
         if self.auto_ask:
             AppHelper.callLater(1.5, self._auto)
