@@ -135,7 +135,7 @@ U.css(`
     // Label rows are decided in world space (stable while the camera rocks):
     // upper parts label above the model from their top, lower parts below from their bottom.
     for (const p of S.parts) {
-      p.row = p.fixedAnchor || p.cy >= S.center.y ? 0 : 1;
+      p.row = (p.fixedAnchor ? p.fixedAnchor.y : p.cy) >= S.center.y ? 0 : 1;
       p.anchor.copy(p.fixedAnchor || (p.row === 0 ? p.top : p.bottom));
     }
     S.balancedFor = -1;
@@ -190,8 +190,9 @@ U.css(`
       for (let guard = 0; guard < items.length; guard++) {
         const r0 = items.filter((i) => i.p.row === 0), r1 = items.filter((i) => i.p.row === 1);
         const [big, small, to] = width(r0) > width(r1) ? [r0, r1, 1] : [r1, r0, 0];
-        if (width(big) <= w || width(small) + big[0].lw > w) break;
+        if (width(big) <= w) break;
         const mover = big.reduce((m, i) => (Math.abs(i.p.cy - S.center.y) < Math.abs(m.p.cy - S.center.y) ? i : m));
+        if (width(small) + mover.lw + 6 > w) break;
         mover.p.row = to;
         if (!mover.p.fixedAnchor) mover.p.anchor.copy(to === 0 ? mover.p.top : mover.p.bottom);
         const a = mover.p.anchor.clone().project(S.cam);
