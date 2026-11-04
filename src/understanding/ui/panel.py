@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
-import os
+import logging
 from collections.abc import Callable
 
-import objc
 from AppKit import (
-    NSApp,
     NSBackingStoreBuffered,
     NSColor,
     NSFont,
     NSMakeRect,
     NSPanel,
     NSTextField,
-    NSVisualEffectBlendingModeBehindWindow,
-    NSVisualEffectMaterialHUDWindow,
-    NSVisualEffectStateActive,
-    NSVisualEffectView,
+    NSView,
     NSWindowCollectionBehaviorCanJoinAllSpaces,
     NSWindowCollectionBehaviorFullScreenAuxiliary,
     NSWindowStyleMaskBorderless,
@@ -25,75 +20,93 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from understanding.ui.overlay import NSWindowSharingNone, screen_under_mouse
+from understanding.ui.overlay import SHARING, screen_under_mouse
 
-W, H = 680, 58
+log = logging.getLogger(__name__)
+W, H = 720, 64
 PANEL_LEVEL = 1001
 
 
 class KeyPanel(NSPanel):
+    """Borderless panels refuse key status by default; we need the keyboard."""
+
+    owner = None
+
     def canBecomeKeyWindow(self) -> bool:
         return True
 
+    # Esc in the text field travels up the responder chain to here.
+    def cancelOperation_(self, _sender) -> None:
+        if self.owner is not None:
+            self.owner.on_escape()
 
-class _FieldDelegate(NSObject):
-    def initWithPanel_(self, panel):
-        self = objc.super(_FieldDelegate, self).init()
-        self.panel = panel
-        return self
 
-    def control_textView_doCommandBySelector_(self, control, text_view, selector) -> bool:
-        sel = selector.decode() if isinstance(selector, bytes) else str(selector)
-        if sel == "cancelOperation:":
-            self.panel.on_escape()
-            return True
-        if sel == "insertNewline:":
-            self.panel.on_enter()
-            return True
-        return False
+class _Target(NSObject):
+    """Receives the text field's action, which AppKit sends on Return."""
+
+    owner = None
+
+    def submit_(self, _sender) -> None:
+        log.debug("field action fired, owner=%s", self.owner)
+        if self.owner is not None:
+            self.owner.on_enter()
+
+
+def _rgba(r: float, g: float, b: float, a: float):
+    return NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, a).CGColor()
 
 
 class PromptPanel:
     def __init__(self, on_submit: Callable[[str], None], on_escape: Callable[[], None]) -> None:
         self._on_submit = on_submit
         self._on_escape = on_escape
-        self._prev_app = None
         p = KeyPanel.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, W, H),
             NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel,
             NSBackingStoreBuffered,
             False,
         )
+        p.owner = self
         p.setOpaque_(False)
         p.setBackgroundColor_(NSColor.clearColor())
         p.setHasShadow_(True)
         p.setLevel_(PANEL_LEVEL)
-        p.setSharingType_(NSWindowSharingNone)
+        p.setSharingType_(SHARING)
         p.setHidesOnDeactivate_(False)
         p.setCollectionBehavior_(
             NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary
         )
-        fx = NSVisualEffectView.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))
-        fx.setMaterial_(NSVisualEffectMaterialHUDWindow)
-        fx.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
-        fx.setState_(NSVisualEffectStateActive)
-        fx.setWantsLayer_(True)
-        fx.layer().setCornerRadius_(16)
-        fx.layer().setMasksToBounds_(True)
-        p.setContentView_(fx)
 
-        f = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 14, W - 40, 30))
+        # Solid, high-contrast pill: a translucent material vanished over dark apps.
+        bg = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))
+        bg.setWantsLayer_(True)
+        layer = bg.layer()
+        layer.setCornerRadius_(18)
+        layer.setBackgroundColor_(_rgba(0.11, 0.11, 0.12, 0.98))
+        layer.setBorderWidth_(1.5)
+        layer.setBorderColor_(_rgba(0.94, 0.71, 0.16, 0.9))  # same amber as the overlay accent
+        p.setContentView_(bg)
+
+        icon = NSTextField.labelWithString_("◐")
+        icon.setFont_(NSFont.systemFontOfSize_(22))
+        icon.setTextColor_(NSColor.colorWithSRGBRed_green_blue_alpha_(0.94, 0.71, 0.16, 1))
+        icon.setFrame_(NSMakeRect(18, 17, 28, 30))
+        bg.addSubview_(icon)
+
+        f = NSTextField.alloc().initWithFrame_(NSMakeRect(52, 18, W - 72, 28))
         f.setBezeled_(False)
         f.setDrawsBackground_(False)
         f.setFocusRingType_(1)  # none
         f.setFont_(NSFont.systemFontOfSize_(20))
         f.setTextColor_(NSColor.whiteColor())
-        f.setPlaceholderString_("Ask about your screen…   (Enter to ask · Esc to close · /new resets)")
+        f.setPlaceholderString_("Ask about your screen…    ⏎ ask · esc close · /new resets")
         f.cell().setScrollable_(True)
         f.cell().setWraps_(False)
-        self._delegate = _FieldDelegate.alloc().initWithPanel_(self)
-        f.setDelegate_(self._delegate)
-        fx.addSubview_(f)
+        self._target = _Target.alloc().init()
+        self._target.owner = self
+        f.setTarget_(self._target)
+        f.setAction_("submit:")
+        bg.addSubview_(f)
         self.panel, self.field = p, f
 
     @property
@@ -101,30 +114,28 @@ class PromptPanel:
         return bool(self.panel.isVisible())
 
     def show(self) -> None:
-        from AppKit import NSWorkspace
-
-        front = NSWorkspace.sharedWorkspace().frontmostApplication()
-        if front is not None and front.processIdentifier() != os.getpid():
-            self._prev_app = front
         sf = screen_under_mouse().visibleFrame()
         x = sf.origin.x + (sf.size.width - W) / 2
-        y = sf.origin.y + sf.size.height * 0.80
+        y = sf.origin.y + sf.size.height * 0.78
         self.panel.setFrameOrigin_((x, y))
         self.field.setStringValue_("")
-        NSApp.activateIgnoringOtherApps_(True)
+        # A non-activating panel takes the keyboard without activating our app
+        # (the Spotlight pattern): the user's app stays active and gets focus
+        # back by itself on close. Activating and re-activating the previous app
+        # left keyboard focus in limbo on macOS 26+ (Esc stopped arriving).
         self.panel.makeKeyAndOrderFront_(None)
         self.panel.makeFirstResponder_(self.field)
 
-    def hide(self, restore_focus: bool = True) -> None:
+    def hide(self) -> None:
         self.panel.orderOut_(None)
-        if restore_focus and self._prev_app is not None:
-            self._prev_app.activateWithOptions_(0)
 
     def on_enter(self) -> None:
         text = str(self.field.stringValue())
+        log.debug("prompt submitted: %r", text)
         self.hide()
         self._on_submit(text)
 
     def on_escape(self) -> None:
         self.hide()
         self._on_escape()
+

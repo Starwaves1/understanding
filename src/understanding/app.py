@@ -64,7 +64,9 @@ class Controller(NSObject):
         self.overlay = Overlay(prims)
         self.session = Session(brain, providers, OverlayRenderer(self.overlay))
         self.panel = PromptPanel(on_submit=self.submit, on_escape=self.dismiss)
-        self.hotkey = Hotkey(cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape)
+        self.hotkey = Hotkey(
+            cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape, on_click=self.escape
+        )
         self._build_menu()
         self.session.start()
         check_accessibility()
@@ -80,6 +82,7 @@ class Controller(NSObject):
     # -- actions -------------------------------------------------------------
     @objc.python_method
     def toggle(self) -> None:
+        log.debug("hotkey tap: panel visible=%s", self.panel.visible)
         if self.panel.visible:
             self.panel.hide()
             return
@@ -104,7 +107,8 @@ class Controller(NSObject):
 
     @objc.python_method
     def escape(self) -> None:
-        # Global Esc clears the drawing when the prompt box isn't open.
+        # Esc or a click anywhere clears the drawing when the prompt box isn't open
+        # (the overlay is click-through, so the click still reaches the app below).
         if not self.panel.visible and self.overlay.has_content:
             self.dismiss()
 

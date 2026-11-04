@@ -24,7 +24,8 @@ Both are in System Settings ▸ Privacy & Security. Restart after granting.
 | --- | --- |
 | tap ⌃⌥ | open or close the prompt box |
 | Enter | ask; the box closes and the answer draws itself |
-| Esc | close the box, or clear the drawing |
+| Esc | close the box (and clear the drawing) |
+| click anywhere | clear the drawing (the click still goes through to your app) |
 | `/new` | start a new conversation |
 | `/clear` | clear the drawing |
 
@@ -37,6 +38,8 @@ Both are in System Settings ▸ Privacy & Security. Restart after granting.
 ./understanding prompt                                     # the composed system prompt
 uv run pytest
 ```
+
+Screenshots and screen recordings don't show the overlay: our windows are excluded from capture so the model never sees its own drawings. To capture a demo, launch with `UNDERSTANDING_CAPTURABLE=1 ./understanding`.
 
 Logs: `~/Library/Logs/understanding.log` (includes renderer JS errors). The overlay's webview can be inspected from Safari ▸ Develop.
 

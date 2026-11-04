@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 class Contribution:
     images: list[Image] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # On-screen text with boxes in screenshot pixels: {"t", "x", "y", "w", "h"}.
+    anchors: list[dict] = field(default_factory=list)
 
 
 Provider = Callable[[], Contribution]
@@ -62,6 +64,7 @@ def snapshot(providers: list[Provider]) -> Future[Contribution]:
                 continue
             out.images += c.images
             out.notes += c.notes
+            out.anchors += c.anchors
         return out
 
     return _pool.submit(merge)

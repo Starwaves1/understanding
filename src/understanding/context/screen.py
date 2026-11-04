@@ -5,12 +5,17 @@ Our own windows set sharingType=None, so they never appear in captures.
 
 from __future__ import annotations
 
+import logging
 import subprocess
+import time
 import tempfile
 from pathlib import Path
 
 from understanding.brains import Image
 from understanding.context import Contribution, register
+from understanding.context.ocr import text_anchors
+
+log = logging.getLogger(__name__)
 
 
 def _display_index_under_mouse() -> int:
@@ -25,8 +30,9 @@ def _display_index_under_mouse() -> int:
 
 
 @register("screen")
-def screen(max_side: int = 1280, quality: int = 70):
+def screen(max_side: int = 1280, quality: int = 70, ocr: bool = True):
     def capture() -> Contribution:
+        t0 = time.monotonic()
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "shot.jpg"
             subprocess.run(
@@ -46,6 +52,10 @@ def screen(max_side: int = 1280, quality: int = 70):
             ).stdout
             w = int(out.split("pixelWidth:")[1].split()[0])
             h = int(out.split("pixelHeight:")[1].split()[0])
-            return Contribution(images=[Image(path.read_bytes(), "image/jpeg", w, h)])
+            data = path.read_bytes()
+            log.info("screenshot %dx%d %d KB in %.2fs", w, h, len(data) // 1024, time.monotonic() - t0)
+            anchors = text_anchors(path, w, h) if ocr else []
+            log.info("ocr: %d text anchors, total %.2fs", len(anchors), time.monotonic() - t0)
+            return Contribution(images=[Image(data, "image/jpeg", w, h)], anchors=anchors)
 
     return capture

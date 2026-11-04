@@ -40,3 +40,11 @@ def test_extra_modifier_cancels():
     tap.modifiers({"control", "option"})
     tap.modifiers({"control", "option", "command"})
     assert not tap.modifiers(set())
+
+
+
+def test_phantom_shift_is_ignored():
+    # Observed live 2026-11-03: the chord's release arrived as {"shift"} instead of {}.
+    tap, _ = make()
+    tap.modifiers({"control", "option"})
+    assert tap.modifiers({"shift"})
