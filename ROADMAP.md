@@ -10,3 +10,5 @@
 - [ ] Clickable card (copy text, pin card, ask follow-up by clicking a node)
 - [ ] Other brains: Anthropic API direct, local model (Ollama / llama.cpp server)
 - [ ] Multi-display: overlay follows the display the question was asked on (partly done)
+- [ ] JS test harness; pin `U.findQuote` word-boundary and prefix-floor rules (fable review nit)
+- [ ] OCR line grouping by vertical overlap instead of `y // 6` buckets; OCR timeout during first-run compile (fable review nits S4/S5)

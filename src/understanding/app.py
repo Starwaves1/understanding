@@ -70,7 +70,7 @@ class Controller(NSObject):
                 cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape, on_click=self.escape
             )
         except RuntimeError:
-            log.exception("no global hotkey; use the ◐ menu-bar item to ask")
+            log.exception("no keyboard/mouse event tap: no global hotkey, Esc or click-to-dismiss; use the ◐ menu-bar item to ask")
             self.hotkey = None
         self._build_menu()
         self.session.start()
