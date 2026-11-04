@@ -39,6 +39,8 @@
       this.clear();
       this.frame = { imgW: turn.imgW || innerWidth, imgH: turn.imgH || innerHeight };
       this.anchors = turn.anchors || [];
+      this._lastLayout = undefined;
+      this.reportLayout();
       this.status(turn.question ? `“${turn.question}”` : "", true);
     },
 
@@ -189,6 +191,7 @@
         this.cardEl = c;
         // Content keeps growing after an op (typewriter, fonts, layout), so refit on any resize.
         new ResizeObserver(() => this.fit()).observe(c);
+        c.addEventListener("animationend", () => this.reportLayout());
       }
       const c = this.cardEl;
       if (opts.title != null) c.querySelector(".card-title").textContent = opts.title;
@@ -231,7 +234,21 @@
 
     // Shrink the card when content outgrows the viewport; the overlay is
     // click-through so it can't scroll.
+    // Tell Python where the card is so the native ✕ button can sit on its corner.
+    reportLayout() {
+      const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.layout;
+      if (!h) return;
+      const r = this.cardEl && this.cardEl.getBoundingClientRect();
+      const rect = r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+      const key = JSON.stringify(rect);
+      if (key !== this._lastLayout) {
+        this._lastLayout = key;
+        h.postMessage(rect);
+      }
+    },
+
     fit() {
+      this.reportLayout();
       const c = this.cardEl;
       if (!c) return;
       this.reflowCard();
@@ -240,6 +257,7 @@
       const scale = Math.max(0.5, Math.min(1, (innerHeight - top - 24) / natural));
       c.style.transformOrigin = c.dataset.side === "left" ? "top left" : "top right";
       c.style.transform = scale < 1 ? `scale(${scale})` : "";
+      this.reportLayout();
     },
 
     // Clamp a label's top-left so it stays on screen.

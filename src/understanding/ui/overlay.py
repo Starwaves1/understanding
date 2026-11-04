@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from AppKit import (
@@ -44,6 +43,24 @@ class _JSLog(NSObject):
     def userContentController_didReceiveScriptMessage_(self, _controller, message) -> None:
         log.warning("renderer %s", message.body())
 
+
+class _JSLayout(NSObject):
+    """Receives the card's viewport rect (or null) so the close button can follow it."""
+
+    overlay = None
+
+    def userContentController_didReceiveScriptMessage_(self, _controller, message) -> None:
+        if self.overlay is not None:
+            self.overlay.card_moved(message.body())
+
+
+class _CloseTarget(NSObject):
+    callback = None
+
+    def close_(self, _sender) -> None:
+        if self.callback is not None:
+            self.callback()
+
 from understanding.primitives import Primitive
 from understanding.protocol import Op
 
@@ -51,9 +68,7 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 OVERLAY_LEVEL = 1000  # above normal and floating windows, below our prompt panel
 NSWindowSharingNone = 0
 NSWindowSharingReadOnly = 1
-# UNDERSTANDING_CAPTURABLE=1 lets our windows show up in screenshots (debugging,
-# sharing a demo). Off by default so the screen context never sees our drawings.
-SHARING = NSWindowSharingReadOnly if os.environ.get("UNDERSTANDING_CAPTURABLE") else NSWindowSharingNone
+CLOSE_SIZE = 30
 
 
 def build_html(primitives: list[Primitive]) -> str:
@@ -90,7 +105,9 @@ class Overlay:
         w.setHasShadow_(False)
         w.setIgnoresMouseEvents_(True)
         w.setLevel_(OVERLAY_LEVEL)
-        w.setSharingType_(SHARING)  # keep our drawings out of the screenshots
+        # Visible in the user's screenshots and recordings. Our own screenshot for
+        # the model hides the window first (Overlay.hide_for_capture).
+        w.setSharingType_(NSWindowSharingReadOnly)
         w.setReleasedWhenClosed_(False)
         w.setCollectionBehavior_(
             NSWindowCollectionBehaviorCanJoinAllSpaces
@@ -101,6 +118,9 @@ class Overlay:
         self._js_log = _JSLog.alloc().init()
         ucc = cfg.userContentController()
         ucc.addScriptMessageHandler_name_(self._js_log, "log")
+        self._js_layout = _JSLayout.alloc().init()
+        self._js_layout.overlay = self
+        ucc.addScriptMessageHandler_name_(self._js_layout, "layout")
         ucc.addUserScript_(
             WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(
                 _JS_LOG_BRIDGE, WKUserScriptInjectionTimeAtDocumentStart, True
@@ -115,10 +135,77 @@ class Overlay:
         self.web.loadHTMLString_baseURL_(build_html(primitives), NSURL.fileURLWithPath_(str(WEB) + "/"))
         w.orderFrontRegardless()
         self.has_content = False
+        self.safe_top = 38.0
+        self._close = self._make_close_button()
+        self.on_close = None  # set by the app: what the ✕ button does
         # Bumped by clear(). Ops already queued for the main thread carry the
         # generation they were sent under and are dropped if it has moved on,
         # so Esc mid-answer can't be undone by stragglers.
         self.generation = 0
+
+    def _make_close_button(self):
+        """A tiny clickable window over the card's corner. The overlay itself stays
+        click-through, so a click on ✕ never leaks into the app underneath."""
+        from AppKit import NSButton, NSMakeRect, NSPanel, NSWindowStyleMaskNonactivatingPanel
+
+        p = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+            NSMakeRect(0, 0, CLOSE_SIZE, CLOSE_SIZE),
+            NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel,
+            NSBackingStoreBuffered,
+            False,
+        )
+        p.setOpaque_(False)
+        p.setBackgroundColor_(NSColor.clearColor())
+        p.setLevel_(OVERLAY_LEVEL + 1)
+        p.setHidesOnDeactivate_(False)
+        p.setSharingType_(NSWindowSharingReadOnly)
+        p.setCollectionBehavior_(
+            NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary
+        )
+        b = NSButton.alloc().initWithFrame_(NSMakeRect(0, 0, CLOSE_SIZE, CLOSE_SIZE))
+        b.setBordered_(False)
+        b.setWantsLayer_(True)
+        b.layer().setCornerRadius_(CLOSE_SIZE / 2)
+        b.layer().setBackgroundColor_(NSColor.colorWithSRGBRed_green_blue_alpha_(0.17, 0.16, 0.15, 0.9).CGColor())
+        from AppKit import NSAttributedString, NSFont, NSForegroundColorAttributeName, NSFontAttributeName
+
+        b.setAttributedTitle_(
+            NSAttributedString.alloc().initWithString_attributes_(
+                "✕", {NSForegroundColorAttributeName: NSColor.whiteColor(), NSFontAttributeName: NSFont.boldSystemFontOfSize_(14)}
+            )
+        )
+        b.setToolTip_("Close (Esc)")
+        self._close_target = _CloseTarget.alloc().init()
+        self._close_target.callback = lambda: self.on_close and self.on_close()
+        b.setTarget_(self._close_target)
+        b.setAction_("close:")
+        p.setContentView_(b)
+        return p
+
+    def card_moved(self, rect) -> None:
+        """Pin the ✕ to the card's top-right corner (viewport coords → screen)."""
+        if not self.has_content or not self.window.isVisible():
+            self._close.orderOut_(None)
+            return
+        f = self.window.frame()
+        if rect:
+            cx = f.origin.x + float(rect["x"]) + float(rect["w"]) - 6
+            cy = f.origin.y + f.size.height - float(rect["y"]) + 6
+        else:  # drawing with no card (only screen labels): top center, under the menu bar
+            cx = f.origin.x + f.size.width / 2
+            cy = f.origin.y + f.size.height - self.safe_top - 60
+        self._close.setFrameOrigin_((cx - CLOSE_SIZE / 2, cy - CLOSE_SIZE / 2))
+        self._close.orderFrontRegardless()
+
+    def hide_for_capture(self) -> None:
+        """Take our drawing off screen while the model's screenshot is taken."""
+        self.window.orderOut_(None)
+        self._close.orderOut_(None)
+
+    def unhide(self) -> None:
+        self.window.orderFrontRegardless()
+        if self.has_content:
+            self.js("U.reportLayout()")
 
     def js(self, code: str) -> None:
         self.web.evaluateJavaScript_completionHandler_(code, None)
@@ -133,11 +220,13 @@ class Overlay:
         self.window.orderFrontRegardless()
         menu_bar = (frame.origin.y + frame.size.height) - (screen.visibleFrame().origin.y + screen.visibleFrame().size.height)
         notch = screen.safeAreaInsets().top if hasattr(screen, "safeAreaInsets") else 0
-        return max(menu_bar, notch, 0)
+        self.safe_top = max(menu_bar, notch, 0)
+        return self.safe_top
 
     def clear(self) -> None:
         self.generation += 1
         self.has_content = False
+        self._close.orderOut_(None)
         self.js("U.clear(); U.status(null)")
 
 

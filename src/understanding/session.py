@@ -49,9 +49,10 @@ class Session:
         self._worker.start()
         self._jobs.put(None)  # warm the brain on the worker thread
 
-    def prepare(self) -> None:
-        """Hotkey fired: snapshot the screen now, before our prompt box appears."""
+    def prepare(self) -> Future[context.Contribution] | None:
+        """Hotkey fired: snapshot the screen now. Returns the snapshot future."""
         self._pending_snapshot = context.snapshot(self.providers) if self.providers else None
+        return self._pending_snapshot
 
     def submit(self, question: str) -> None:
         question = question.strip()

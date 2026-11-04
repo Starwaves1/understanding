@@ -20,7 +20,7 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from understanding.ui.overlay import SHARING, screen_under_mouse
+from understanding.ui.overlay import NSWindowSharingNone, screen_under_mouse
 
 log = logging.getLogger(__name__)
 W, H = 720, 64
@@ -71,7 +71,7 @@ class PromptPanel:
         p.setBackgroundColor_(NSColor.clearColor())
         p.setHasShadow_(True)
         p.setLevel_(PANEL_LEVEL)
-        p.setSharingType_(SHARING)
+        p.setSharingType_(NSWindowSharingNone)
         p.setHidesOnDeactivate_(False)
         p.setCollectionBehavior_(
             NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary
