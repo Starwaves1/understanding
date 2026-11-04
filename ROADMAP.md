@@ -12,3 +12,4 @@
 - [ ] Multi-display: overlay follows the display the question was asked on (partly done)
 - [ ] JS test harness; pin `U.findQuote` word-boundary and prefix-floor rules (fable review nit)
 - [ ] OCR line grouping by vertical overlap instead of `y // 6` buckets; OCR timeout during first-run compile (fable review nits S4/S5)
+- [ ] Quoted-highlight label: on a clash, `placeLabel` mirrors left of the highlight end (onto the text); skip mirrored tries or fall back to above-the-box (fable review nit)
