@@ -109,7 +109,7 @@ body {
   animation: card-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .card.wide {
-  width: 640px;
+  --card-w: 640px;
 }
 @keyframes card-in {
   from {

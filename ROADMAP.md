@@ -14,3 +14,4 @@
 - [ ] OCR line grouping by vertical overlap instead of `y // 6` buckets; OCR timeout during first-run compile (fable review nits S4/S5)
 - [ ] Quoted-highlight label: on a clash, `placeLabel` mirrors left of the highlight end (onto the text); skip mirrored tries or fall back to above-the-box (fable review nit)
 - [ ] Let the user rotate a 3D scene (the overlay is click-through; needs a hit-testable region)
+- [ ] scene3d review nits: cut on `axis:"z"` parts keeps the wrong half; gate the prompt's 3D routing on scene3d being enabled; fit() during pop-in can under-size the camera distance

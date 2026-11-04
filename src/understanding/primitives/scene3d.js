@@ -53,7 +53,7 @@ U.css(`
     cylinder(op, S) {
       const r = +op.r || 0.5, r2 = op.r2 != null ? +op.r2 : r, len = +op.len || 1;
       const [t0, tl] = sweep(S, op);
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r, len, 48, 1, !!(op.cut ?? S.cut), t0, tl), material(op, S));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r, len, 48, 1, !!op.hollow, t0, tl), material(op, S));
       orient(m, op.axis);
       m.position.copy(v3(op.at));
       return m;
@@ -62,7 +62,8 @@ U.css(`
       // Hub + blades in the plane perpendicular to the long axis.
       const g = new THREE.Group(), r = +op.r || 1, n = Math.min(40, +op.blades || 16);
       const mat = material(op, S);
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, r * 0.25, 32), mat));
+      const [h0, hl] = sweep(S, op);
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.22, r * 0.22, r * 0.25, 32, 1, false, h0, hl), mat));
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2;
         if ((op.cut ?? S.cut) && Math.cos(a) > 0.05) continue; // cutaway: keep the far half
@@ -131,10 +132,27 @@ U.css(`
     const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
     S.center.copy(center);
     S.radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+    // Label rows are decided in world space (stable while the camera rocks):
+    // upper parts label above the model from their top, lower parts below from their bottom.
+    for (const p of S.parts) {
+      p.row = p.fixedAnchor || p.cy >= S.center.y ? 0 : 1;
+      p.anchor.copy(p.fixedAnchor || (p.row === 0 ? p.top : p.bottom));
+    }
+    S.balancedFor = -1;
   }
 
   function frame(S, t) {
-    if (!S.el.isConnected) return S.renderer.dispose(); // card cleared: stop the loop
+    if (!S.el.isConnected) {
+      // Card cleared: stop the loop and release GPU memory and the WebGL context
+      // (an all-day overlay would otherwise pile up contexts until GC).
+      S.scene.traverse((o) => {
+        o.geometry?.dispose();
+        o.material?.dispose();
+      });
+      S.renderer.dispose();
+      S.renderer.forceContextLoss();
+      return;
+    }
     const spin = S.spin === "full" ? t * 0.00035 : Math.sin(t * 0.0005) * 0.6; // rock ±35° so a cutaway stays readable
     const dist = S.radius * 2.7;
     const elev = deg(S.elev ?? 22);
@@ -164,9 +182,24 @@ U.css(`
       const a = p.anchor.clone().project(S.cam);
       return { p, ax: (a.x * 0.5 + 0.5) * w, ay: (-a.y * 0.5 + 0.5) * h, lw: p.lbl.offsetWidth + 8 };
     });
-    // Split by the part's height on screen: upper parts label above, lower below.
-    const midY = items.reduce((t, i) => t + i.ay, 0) / (items.length || 1);
-    const rows = [items.filter((i) => i.ay <= midY), items.filter((i) => i.ay > midY)];
+    // Once per new part (not per frame, so labels don't jump): if a row's labels
+    // are wider than the scene, move the parts nearest the middle to the other row.
+    if (S.balancedFor !== items.length) {
+      S.balancedFor = items.length;
+      const width = (row) => row.reduce((t, i) => t + i.lw + 6, 6);
+      for (let guard = 0; guard < items.length; guard++) {
+        const r0 = items.filter((i) => i.p.row === 0), r1 = items.filter((i) => i.p.row === 1);
+        const [big, small, to] = width(r0) > width(r1) ? [r0, r1, 1] : [r1, r0, 0];
+        if (width(big) <= w || width(small) + big[0].lw > w) break;
+        const mover = big.reduce((m, i) => (Math.abs(i.p.cy - S.center.y) < Math.abs(m.p.cy - S.center.y) ? i : m));
+        mover.p.row = to;
+        if (!mover.p.fixedAnchor) mover.p.anchor.copy(to === 0 ? mover.p.top : mover.p.bottom);
+        const a = mover.p.anchor.clone().project(S.cam);
+        mover.ax = (a.x * 0.5 + 0.5) * w;
+        mover.ay = (-a.y * 0.5 + 0.5) * h;
+      }
+    }
+    const rows = [items.filter((i) => i.p.row === 0), items.filter((i) => i.p.row === 1)];
     S.leaders.innerHTML = "";
     rows.forEach((row, r) => {
       row.sort((a, b) => a.ax - b.ax);
@@ -241,14 +274,19 @@ U.css(`
     if (!obj) return console.warn("scene3d: bad part", op.id);
     if (op.shape !== "arrow") outline(obj);
     S.scene.add(obj);
-    const part = { obj, anchor: new THREE.Vector3() };
-    // Label anchor: explicit `label_at`, else the part's bounding-box top.
-    if (op.label_at) part.anchor.copy(v3(op.label_at));
-    else {
-      const b = new THREE.Box3().setFromObject(obj);
-      part.anchor.set((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2);
+    const b = new THREE.Box3().setFromObject(obj);
+    const mx = (b.min.x + b.max.x) / 2, mz = (b.min.z + b.max.z) / 2;
+    const part = {
+      obj, anchor: new THREE.Vector3(), row: 0, cy: (b.min.y + b.max.y) / 2,
+      top: new THREE.Vector3(mx, b.max.y, mz), bottom: new THREE.Vector3(mx, b.min.y, mz),
+      fixedAnchor: op.label_at ? v3(op.label_at) : null,
+    };
+    if (op.label) {
+      const tone = op.tone || "green";
+      part.lbl = U.el("div", `lbl tone-${tone}`, S.el, op.label);
+      // Tones outside the CSS palette (red, copper, …) still color the border.
+      if (!["blue", "orange", "green", "purple", "gray"].includes(tone)) part.lbl.style.setProperty("--tone", NAMED[tone] || tone);
     }
-    if (op.label) part.lbl = U.el("div", `lbl tone-${op.tone || "green"}`, S.el, op.label);
     S.parts.push(part);
     fit(S);
   });
