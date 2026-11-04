@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from AppKit import (
@@ -20,7 +21,8 @@ from Foundation import NSURL, NSObject, NSPointInRect
 from PyObjCTools.AppHelper import callAfter
 from WebKit import WKUserScript, WKWebView, WKWebViewConfiguration
 
-import logging
+from understanding.primitives import Primitive
+from understanding.protocol import Op
 
 log = logging.getLogger(__name__)
 WKUserScriptInjectionTimeAtDocumentStart = 0
@@ -42,11 +44,6 @@ _JS_LOG_BRIDGE = """
 class _JSLog(NSObject):
     def userContentController_didReceiveScriptMessage_(self, _controller, message) -> None:
         log.warning("renderer %s", message.body())
-
-
-
-from understanding.primitives import Primitive
-from understanding.protocol import Op
 
 
 class _JSLayout(NSObject):
@@ -71,6 +68,7 @@ OVERLAY_LEVEL = 1000  # above normal and floating windows, below our prompt pane
 NSWindowSharingNone = 0
 NSWindowSharingReadOnly = 1
 CLOSE_SIZE = 30
+_UNKNOWN = object()  # card position not reported yet this turn
 
 
 def build_html(primitives: list[Primitive]) -> str:
@@ -201,6 +199,10 @@ class Overlay:
         self._close.setFrameOrigin_((cx - CLOSE_SIZE / 2, cy - CLOSE_SIZE / 2))
         self._close.orderFrontRegardless()
 
+    def forget_card(self) -> None:
+        self._card_rect = _UNKNOWN
+        self._close.orderOut_(None)
+
     def hide_for_capture(self) -> None:
         """Take our drawing off screen while the model's screenshot is taken."""
         self.window.orderOut_(None)
@@ -208,7 +210,7 @@ class Overlay:
 
     def unhide(self) -> None:
         self.window.orderFrontRegardless()
-        if self.has_content:
+        if self.has_content and self._card_rect is not _UNKNOWN:
             self.card_moved(self._card_rect)
 
     def js(self, code: str) -> None:
@@ -259,6 +261,7 @@ class OverlayRenderer:
             box[0] = self.overlay.generation
             safe_top = self.overlay.follow_mouse_screen()
             self.overlay.has_content = True
+            self.overlay.forget_card()  # the old card's ✕ goes until the new one reports
             self.overlay.js(f"U.setSafeTop({safe_top:.0f}); U.begin({payload})")
 
         callAfter(run)
