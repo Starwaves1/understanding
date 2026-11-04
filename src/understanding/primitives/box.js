@@ -28,9 +28,10 @@ U.register("box", (op, U) => {
   }
   if (op.text) {
     const l = U.el("div", "hl-label", U.screenLayer(), op.text);
-    // Quoted text: label just right of where the highlight ends (covers no text
-    // on that line). Regions: label above the box.
-    const r = top.endX != null
+    // Quoted text: label just right of where the highlight ends, unless that
+    // would run off screen (clamping would slide it over the text). Regions and
+    // that fallback: label above the box.
+    const r = top.endX != null && top.endX + 14 + l.offsetWidth <= innerWidth - 8
       ? U.placeLabel(top.endX, top.endY, l.offsetWidth, l.offsetHeight, 14, 0)
       : U.placeLabel(top.x, top.y - l.offsetHeight / 2 - 8, l.offsetWidth, l.offsetHeight, 0, 0);
     l.style.left = `${r.x}px`;
