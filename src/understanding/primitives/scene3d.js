@@ -87,7 +87,10 @@ U.css(`
     },
     fuselage(op, S) {
       // Smooth body lofted through cross-sections [x, halfWidth, halfHeight, yCenter?].
-      const st = (op.sections || []).map((q) => q.map(Number)).filter((q) => q.length >= 3).sort((a, b) => a[0] - b[0]);
+      const st = (op.sections || [])
+        .map((q) => (Array.isArray(q) ? q.map(Number) : []))
+        .filter((q) => q.length >= 3 && q.slice(0, 3).every(Number.isFinite))
+        .sort((a, b) => a[0] - b[0]);
       if (st.length < 2) return null;
       const P = (i) => new THREE.Vector3(st[i][0], Math.max(0.001, st[i][1]), Math.max(0.001, st[i][2]));
       const shape = new THREE.CatmullRomCurve3(st.map((_, i) => P(i)), false, "centripetal");
@@ -111,6 +114,16 @@ U.css(`
       g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       g.setIndex(idx);
       g.computeVertexNormals();
+      if (!cut) {
+        // The ring's first and last vertices coincide; average their normals so the seam doesn't show.
+        const nrm = g.attributes.normal;
+        for (let i = 0; i <= N; i++) {
+          const a = i * (R + 1), b = a + R;
+          const v = new THREE.Vector3().fromBufferAttribute(nrm, a).add(new THREE.Vector3().fromBufferAttribute(nrm, b)).normalize();
+          nrm.setXYZ(a, v.x, v.y, v.z);
+          nrm.setXYZ(b, v.x, v.y, v.z);
+        }
+      }
       const m = new THREE.Mesh(g, material(op, S));
       m.position.copy(v3(op.at));
       return m;
@@ -120,8 +133,10 @@ U.css(`
       // or +y when vertical), swept back by `sweep`°, tapered root_chord→tip_chord,
       // tilted by `dihedral`°. Horizontal wings are mirrored across z=0 by default.
       const span = +op.span || 2, rc = +op.root_chord || 1.5, tc = op.tip_chord != null ? +op.tip_chord : rc * 0.4;
-      const sw = deg(op.sweep ?? 30), dih = deg(op.dihedral || 0), th = +op.thickness || 0.06;
-      const vertical = !!op.vertical, [rx, ry, rz] = (op.root || op.at || [0, 0, 0]).map(Number);
+      const sw = deg(op.sweep || 0), dih = deg(op.dihedral || 0), th = +op.thickness || 0.06, cant = deg(op.cant || 0);
+      const root = op.root || op.at || [0, 0, 0];
+      if (!Array.isArray(root) || root.length !== 3 || !root.every((v) => Number.isFinite(+v))) return null; // malformed: drop
+      const vertical = !!op.vertical, [rx, ry, rz] = root.map(Number);
       const C = 28, K = 8, pos = [], idx = [];
       const xs = [...Array(C + 1)].map((_, i) => 0.5 * (1 - Math.cos((Math.PI * i) / C))); // cosine spacing
       const yt = (x) => 5 * th * (0.2969 * Math.sqrt(x) - 0.126 * x - 0.3516 * x * x + 0.2843 * x ** 3 - 0.1036 * x ** 4);
@@ -130,7 +145,7 @@ U.css(`
         const s = k / K, c = rc + (tc - rc) * s, d = s * span, le = rx + d * Math.tan(sw);
         for (const [x, t] of ring) {
           const px = le + x * c, thick = t * c;
-          if (vertical) pos.push(px, ry + d, rz + thick);
+          if (vertical) pos.push(px, ry + d * Math.cos(cant), rz + d * Math.sin(cant) + thick);
           else pos.push(px, ry + d * Math.sin(dih) + thick, rz + d * Math.cos(dih));
         }
       }
@@ -140,22 +155,23 @@ U.css(`
           const a = k * n + j, b = k * n + ((j + 1) % n);
           idx.push(a, a + n, b, b, a + n, b + n);
         }
-      // tip cap (fan around the tip section's first vertex)
-      const tip = K * n;
-      for (let j = 1; j < n - 1; j++) idx.push(tip, tip + j, tip + j + 1);
+      // Tip cap on its own copy of the tip ring, so its flat normals don't bend the
+      // side surface's normals (that showed as a dark notch at the tip).
+      const tip = pos.length / 3;
+      pos.push(...pos.slice((K * n) * 3, (K * n + n) * 3));
+      for (let j = 1; j < n - 1; j++) idx.push(tip, tip + j + 1, tip + j);
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       g.setIndex(idx);
       g.computeVertexNormals();
       const mat = material(op, S), grp = new THREE.Group(), half = new THREE.Mesh(g, mat);
       grp.add(half);
-      if (op.cant) half.rotateX(-deg(op.cant)); // twin fins leaning outward
       if (op.mirror ?? !vertical) {
         const other = half.clone();
         other.scale.z = -1; // three.js flips winding for negative scale, so lighting stays correct
-        if (op.cant) other.rotation.x = deg(op.cant);
         grp.add(other);
       }
+      grp.userData.anchorObj = half; // label the right-hand half, not the centerline
       return grp;
     },
     box(op, S) {
@@ -237,6 +253,7 @@ U.css(`
     S.sun.target.position.copy(center);
     Object.assign(S.sun.shadow.camera, { left: -R * 2, right: R * 2, top: R * 2, bottom: -R * 2, near: 0.01, far: R * 12 });
     S.sun.shadow.camera.updateProjectionMatrix();
+    S.sun.shadow.normalBias = R * 0.01; // no acne on thin airfoils at grazing light
     // Label rows are decided in world space (stable while the camera rocks):
     // upper parts label above the model from their top, lower parts below from their bottom.
     for (const p of S.parts) {
@@ -254,6 +271,7 @@ U.css(`
         o.geometry?.dispose();
         o.material?.dispose();
       });
+      S.scene.environment?.dispose();
       S.renderer.dispose();
       S.renderer.forceContextLoss();
       return;
@@ -360,7 +378,6 @@ U.css(`
     const sun = new THREE.DirectionalLight(0xffffff, 2.2);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.radius = 6;
     scene.add(sun, sun.target);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.18 }));
     ground.rotation.x = -Math.PI / 2;
@@ -393,7 +410,12 @@ U.css(`
     if (["box", "plate", "cylinder", "fan"].includes(op.shape)) outline(obj);
     obj.traverse((m) => { if (m.isMesh) m.castShadow = true; });
     S.scene.add(obj);
-    const b = new THREE.Box3().setFromObject(obj);
+    const b = new THREE.Box3().setFromObject(obj.userData.anchorObj || obj);
+    // One malformed part (NaN coordinates) must not blank the whole scene via fit().
+    if (![b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].every(Number.isFinite)) {
+      S.scene.remove(obj);
+      return console.warn("scene3d: dropped part with invalid coordinates", op.id || op.shape);
+    }
     const mx = (b.min.x + b.max.x) / 2, mz = (b.min.z + b.max.z) / 2;
     const part = {
       obj, anchor: new THREE.Vector3(), row: 0, cy: (b.min.y + b.max.y) / 2,
