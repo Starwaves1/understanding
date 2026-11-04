@@ -54,9 +54,31 @@ U.css(`
     return [n.cx, boxCy + Math.sign(dy) * hh];
   }
 
+  // Edge exits on the side of the box: right (dx=1) or top (dy=-1).
+  function side(n, dx, dy) {
+    const r = n.el.querySelector(".box");
+    const cy = n.cy + (n.el.offsetHeight - r.offsetHeight) / 2;
+    return dx ? [n.cx + r.offsetWidth / 2 + 3, cy] : [n.cx, cy - r.offsetHeight / 2 - 3];
+  }
+
   function route(D, e) {
     const a = D.nodes[e.from], b = D.nodes[e.to];
     if (!a || !b) return;
+    // A straight edge that skips a row or column would cut through the box in
+    // between, so bow it out around the column's right side / over the row.
+    const skipsRow = a.col === b.col && Math.abs(a.row - b.row) > 1;
+    const skipsCol = a.row === b.row && Math.abs(a.col - b.col) > 1;
+    if (skipsRow || skipsCol) {
+      const [x1, y1] = side(a, skipsRow, !skipsRow), [x2, y2] = side(b, skipsRow, !skipsRow);
+      const bx = Math.max(x1, x2) + 36, by = Math.min(y1, y2) - 26;
+      e.path.setAttribute("d", skipsRow ? `M${x1},${y1} C${bx},${y1} ${bx},${y2} ${x2},${y2}` : `M${x1},${y1} C${x1},${by} ${x2},${by} ${x2},${y2}`);
+      if (e.label) {
+        e.label.style.left = `${skipsRow ? bx - 6 : (x1 + x2) / 2}px`;
+        e.label.style.top = `${skipsRow ? (y1 + y2) / 2 : by + 4}px`;
+        e.label.style.transform = skipsRow ? "translate(0, -50%)" : "translate(-50%, -100%)";
+      }
+      return;
+    }
     const [x1, y1] = anchor(a, b), [x2, y2] = anchor(b, a);
     const horiz = Math.abs(x2 - x1) > Math.abs(y2 - y1);
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;

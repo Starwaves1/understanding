@@ -136,7 +136,9 @@ def _snapshot(cfg: config.Config, args: argparse.Namespace) -> None:
         w, h = int(out.split("pixelWidth:")[1].split()[0]), int(out.split("pixelHeight:")[1].split()[0])
         bg = f"data:image/jpeg;base64,{base64.b64encode(p.read_bytes()).decode()}"
     html = build_html(primitives.select(primitives.discover(), cfg.primitives))
-    boot = f"""<style>html,body{{background:#555 url('{bg}') 0 0/100% 100% no-repeat !important}}</style>
+    # Static render: no animations, so a headless screenshot never catches them mid-flight.
+    boot = f"""<style>html,body{{background:#555 url('{bg}') 0 0/100% 100% no-repeat !important}}
+*{{animation:none !important}}</style>
 <script>addEventListener("load",()=>{{U.begin({{imgW:{w},imgH:{h}}});U.end();
 const ops={json.dumps(ops)};let i=0;(function next(){{if(i<ops.length){{U.apply(ops[i++]);setTimeout(next,40)}}}})();}});</script>"""
     Path(args.out).write_text(html.replace("</body>", boot + "</body>"))

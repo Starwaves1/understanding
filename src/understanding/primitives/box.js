@@ -17,7 +17,8 @@ U.register("box", (op, U) => {
       Object.assign(m.style, { left: `${r.x - 3}px`, top: `${r.y - 2}px`, width: `${r.w + 6}px`, height: `${r.h + 4}px`, animationDelay: `${i * 0.12}s` });
       U.mark(r);
     });
-    top = { x: lines[0].x, y: lines[0].y };
+    const last = lines[lines.length - 1];
+    top = { x: lines[0].x, y: lines[0].y, endX: last.x + last.w, endY: last.y + last.h / 2 };
   } else {
     if (op.x == null) return console.warn("box: quote not found on screen", op.quote);
     const x = U.sx(+op.x), y = U.sy(+op.y), w = U.sx(+op.w), h = U.sy(+op.h);
@@ -27,7 +28,11 @@ U.register("box", (op, U) => {
   }
   if (op.text) {
     const l = U.el("div", "hl-label", U.screenLayer(), op.text);
-    const r = U.placeLabel(top.x, top.y - l.offsetHeight / 2 - 8, l.offsetWidth, l.offsetHeight, 0, 0);
+    // Quoted text: label just right of where the highlight ends (covers no text
+    // on that line). Regions: label above the box.
+    const r = top.endX != null
+      ? U.placeLabel(top.endX, top.endY, l.offsetWidth, l.offsetHeight, 14, 0)
+      : U.placeLabel(top.x, top.y - l.offsetHeight / 2 - 8, l.offsetWidth, l.offsetHeight, 0, 0);
     l.style.left = `${r.x}px`;
     l.style.top = `${r.y}px`;
   }
