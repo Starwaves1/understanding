@@ -1,4 +1,4 @@
-### diagram / node / edge — boxes and arrows inside the card
+### diagram / node / edge — boxes and arrows inside the card (for PROCESSES and RELATIONSHIPS, not for showing what a thing looks like)
 `{"op":"diagram","id":"d1"}` then stream nodes and edges one per line:
 `{"op":"node","d":"d1","id":"in","label":"[18, 47]","sub":"input","col":0,"row":0,"tone":"blue"}`
 `{"op":"node","d":"d1","id":"out","label":"56","sub":"target","col":1,"row":0,"tone":"orange"}`

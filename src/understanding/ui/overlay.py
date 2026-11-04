@@ -58,7 +58,9 @@ SHARING = NSWindowSharingReadOnly if os.environ.get("UNDERSTANDING_CAPTURABLE") 
 
 def build_html(primitives: list[Primitive]) -> str:
     html = (WEB / "overlay.html").read_text()
-    scripts = "\n".join(f"<script>/* {p.name} */\n{p.js}\n</script>" for p in primitives if p.js)
+    # Vendored libraries (three.js for scene3d) load before the primitives that use them.
+    vendor = "\n".join(f"<script>{f.read_text()}</script>" for f in sorted((WEB / "vendor").glob("*.js")))
+    scripts = vendor + "\n" + "\n".join(f"<script>/* {p.name} */\n{p.js}\n</script>" for p in primitives if p.js)
     return (
         html.replace("/*CSS*/", (WEB / "overlay.css").read_text())
         .replace("/*RUNTIME*/", (WEB / "runtime.js").read_text())
@@ -121,11 +123,17 @@ class Overlay:
     def js(self, code: str) -> None:
         self.web.evaluateJavaScript_completionHandler_(code, None)
 
-    def follow_mouse_screen(self) -> None:
-        frame = screen_under_mouse().frame()
+    def follow_mouse_screen(self) -> float:
+        """Move onto the mouse's screen; return its unsafe top band in points
+        (menu bar, and the camera notch on MacBooks), which we must draw below."""
+        screen = screen_under_mouse()
+        frame = screen.frame()
         if frame != self.window.frame():
             self.window.setFrame_display_(frame, True)
         self.window.orderFrontRegardless()
+        menu_bar = (frame.origin.y + frame.size.height) - (screen.visibleFrame().origin.y + screen.visibleFrame().size.height)
+        notch = screen.safeAreaInsets().top if hasattr(screen, "safeAreaInsets") else 0
+        return max(menu_bar, notch, 0)
 
     def clear(self) -> None:
         self.generation += 1
@@ -156,9 +164,9 @@ class OverlayRenderer:
             # A new turn starts a new generation; earlier stragglers die.
             self.overlay.generation += 1
             box[0] = self.overlay.generation
-            self.overlay.follow_mouse_screen()
+            safe_top = self.overlay.follow_mouse_screen()
             self.overlay.has_content = True
-            self.overlay.js(f"U.begin({payload})")
+            self.overlay.js(f"U.setSafeTop({safe_top:.0f}); U.begin({payload})")
 
         callAfter(run)
 

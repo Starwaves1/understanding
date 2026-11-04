@@ -5,7 +5,7 @@
 - [ ] Image grounding: model names a non-text target ("fan blades"), a vision locator (e.g. TypeSafe Jev Box) resolves it instead of trusting model coordinates
 - [ ] Verify a hardware Esc clears the drawing while Chrome is frontmost (synthetic Esc didn't arrive)
 - [ ] Re-place existing labels when the card flips sides
-- [ ] 3D primitive (three.js scene spec) — the video's "draw the full jet in 3D"
+- [x] 3D primitive: `scene3d`/`part` (three.js), streamed parts, cutaways, callout labels
 - [ ] Voice: TTS reads `say` lines in sync with drawing; STT stays Wispr Flow
 - [ ] Clickable card (copy text, pin card, ask follow-up by clicking a node)
 - [ ] Other brains: Anthropic API direct, local model (Ollama / llama.cpp server)
@@ -13,3 +13,4 @@
 - [ ] JS test harness; pin `U.findQuote` word-boundary and prefix-floor rules (fable review nit)
 - [ ] OCR line grouping by vertical overlap instead of `y // 6` buckets; OCR timeout during first-run compile (fable review nits S4/S5)
 - [ ] Quoted-highlight label: on a clash, `placeLabel` mirrors left of the highlight end (onto the text); skip mirrored tries or fall back to above-the-box (fable review nit)
+- [ ] Let the user rotate a 3D scene (the overlay is click-through; needs a hit-testable region)
