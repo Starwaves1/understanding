@@ -75,14 +75,12 @@ class Hotkey:
         max_seconds: float,
         on_tap: Callable[[], None],
         on_escape: Callable[[], None],
-        on_click: Callable[[], None] | None = None,
     ) -> None:
         import Quartz as Q
 
         self.tap = ModifierTap(set(modifiers), max_seconds)
         self.on_tap = on_tap
         self.on_escape = on_escape
-        self.on_click = on_click
         self._Q = Q
         self._flag_bits = {
             "control": Q.kCGEventFlagMaskControl,
@@ -123,8 +121,6 @@ class Hotkey:
             return
         if etype == Q.kCGEventLeftMouseDown:
             self.tap.key()  # ⌃⌥-click is a chord, not a tap
-            if self.on_click:
-                self.on_click()
             return
         if etype == Q.kCGEventKeyDown:
             code = Q.CGEventGetIntegerValueField(event, Q.kCGKeyboardEventKeycode)

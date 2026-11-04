@@ -63,14 +63,16 @@ class Controller(NSObject):
 
         self.overlay = Overlay(prims)
         self.session = Session(brain, providers, OverlayRenderer(self.overlay))
+        self.overlay.on_close = self.dismiss
+        self._hidden_captures = 0
         self.panel = PromptPanel(on_submit=self.submit, on_escape=self.dismiss)
         check_accessibility()  # before the tap, so the permission prompt can appear
         try:
             self.hotkey = Hotkey(
-                cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape, on_click=self.escape
+                cfg.hotkey, cfg.tap_max_seconds, on_tap=self.toggle, on_escape=self.escape
             )
         except RuntimeError:
-            log.exception("no keyboard/mouse event tap: no global hotkey, Esc or click-to-dismiss; use the ◐ menu-bar item to ask")
+            log.exception("no keyboard event tap: no global hotkey or Esc; use the ◐ menu-bar item to ask, and the card's ✕ to close")
             self.hotkey = None
         self._build_menu()
         self.session.start()
@@ -90,8 +92,44 @@ class Controller(NSObject):
         if self.panel.visible:
             self.panel.hide()
             return
-        self.session.prepare()
-        self.panel.show()
+        self.panel.show()  # excluded from captures, so it can appear right away
+        if self.overlay.has_content:
+            # The drawing is visible in captures now; take it off screen for the
+            # model's screenshot, then put it back. Wait a beat for the window
+            # server to drop it before capturing.
+            self._hidden_captures += 1
+            self.overlay.hide_for_capture()
+            AppHelper.callLater(0.08, self._snapshot_then_unhide)
+            AppHelper.callLater(2.0, self._unhide_if_stuck)  # never leave the drawing hidden
+        else:
+            self.session.prepare()
+
+    @objc.python_method
+    def _snapshot_then_unhide(self) -> None:
+        try:
+            snap = self.session.prepare()
+        except Exception:
+            log.exception("screen snapshot failed")
+            snap = None
+        if snap is None:
+            self._capture_done()
+        else:
+            snap.add_done_callback(lambda _f: AppHelper.callAfter(self._capture_done))
+
+    @objc.python_method
+    def _capture_done(self) -> None:
+        # Only the last overlapping capture brings the drawing back, so a rapid
+        # re-tap can't put it on screen while the next screenshot is taken.
+        self._hidden_captures = max(0, self._hidden_captures - 1)
+        if self._hidden_captures == 0:
+            self.overlay.unhide()
+
+    @objc.python_method
+    def _unhide_if_stuck(self) -> None:
+        if self._hidden_captures and not self.overlay.window.isVisible():
+            log.warning("snapshot slow; showing the drawing again")
+            self._hidden_captures = 0
+            self.overlay.unhide()
 
     @objc.python_method
     def submit(self, text: str) -> None:
@@ -106,13 +144,14 @@ class Controller(NSObject):
 
     @objc.python_method
     def dismiss(self) -> None:
+        log.info("drawing dismissed")
         self.session.cancel()
         self.overlay.clear()
 
     @objc.python_method
     def escape(self) -> None:
-        # Esc or a click anywhere clears the drawing when the prompt box isn't open
-        # (the overlay is click-through, so the click still reaches the app below).
+        # Esc clears the drawing when the prompt box isn't open. Clicks never do:
+        # the drawing stays until Esc or its ✕ button.
         if not self.panel.visible and self.overlay.has_content:
             self.dismiss()
 

@@ -25,7 +25,7 @@ Both are in System Settings ▸ Privacy & Security. Restart after granting.
 | tap ⌃⌥ | open or close the prompt box |
 | Enter | ask; the box closes and the answer draws itself |
 | Esc | close the box (and clear the drawing) |
-| click anywhere | clear the drawing (the click still goes through to your app) |
+| ✕ on the card | clear the drawing (clicks elsewhere leave it up) |
 | `/new` | start a new conversation |
 | `/clear` | clear the drawing |
 
@@ -39,7 +39,7 @@ Both are in System Settings ▸ Privacy & Security. Restart after granting.
 uv run pytest
 ```
 
-Screenshots and screen recordings don't show the overlay: our windows are excluded from capture so the model never sees its own drawings. To capture a demo, launch with `UNDERSTANDING_CAPTURABLE=1 ./understanding`.
+The drawing shows up in your screenshots and screen recordings. When you tap ⌃⌥, it is hidden for the moment the model's own screenshot is taken, so the model never sees its own drawing. The prompt box is never captured.
 
 Logs: `~/Library/Logs/understanding.log` (includes renderer JS errors). The overlay's webview can be inspected from Safari ▸ Develop.
 
