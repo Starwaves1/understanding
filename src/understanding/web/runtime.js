@@ -39,12 +39,12 @@
       this.clear();
       this.frame = { imgW: turn.imgW || innerWidth, imgH: turn.imgH || innerHeight };
       this.anchors = turn.anchors || [];
-      this._lastLayout = undefined;
-      this.reportLayout();
+      this._lastLayout = undefined; // first report comes when the card (or end) appears
       this.status(turn.question ? `“${turn.question}”` : "", true);
     },
 
     end(error) {
+      this.reportLayout(); // card-less drawings (only screen labels) get their ✕ now
       if (error) this.status(error, false, true);
       else this.status(null);
     },
@@ -232,8 +232,6 @@
       s.querySelector(".status-text").textContent = text || "";
     },
 
-    // Shrink the card when content outgrows the viewport; the overlay is
-    // click-through so it can't scroll.
     // Tell Python where the card is so the native ✕ button can sit on its corner.
     reportLayout() {
       const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.layout;
@@ -247,6 +245,8 @@
       }
     },
 
+    // Shrink the card when content outgrows the viewport; the overlay is
+    // click-through so it can't scroll.
     fit() {
       this.reportLayout();
       const c = this.cardEl;

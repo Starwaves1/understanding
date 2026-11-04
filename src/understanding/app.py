@@ -64,6 +64,7 @@ class Controller(NSObject):
         self.overlay = Overlay(prims)
         self.session = Session(brain, providers, OverlayRenderer(self.overlay))
         self.overlay.on_close = self.dismiss
+        self._hidden_captures = 0
         self.panel = PromptPanel(on_submit=self.submit, on_escape=self.dismiss)
         check_accessibility()  # before the tap, so the permission prompt can appear
         try:
@@ -96,18 +97,39 @@ class Controller(NSObject):
             # The drawing is visible in captures now; take it off screen for the
             # model's screenshot, then put it back. Wait a beat for the window
             # server to drop it before capturing.
+            self._hidden_captures += 1
             self.overlay.hide_for_capture()
             AppHelper.callLater(0.08, self._snapshot_then_unhide)
+            AppHelper.callLater(2.0, self._unhide_if_stuck)  # never leave the drawing hidden
         else:
             self.session.prepare()
 
     @objc.python_method
     def _snapshot_then_unhide(self) -> None:
-        snap = self.session.prepare()
+        try:
+            snap = self.session.prepare()
+        except Exception:
+            log.exception("screen snapshot failed")
+            snap = None
         if snap is None:
-            self.overlay.unhide()
+            self._capture_done()
         else:
-            snap.add_done_callback(lambda _f: AppHelper.callAfter(self.overlay.unhide))
+            snap.add_done_callback(lambda _f: AppHelper.callAfter(self._capture_done))
+
+    @objc.python_method
+    def _capture_done(self) -> None:
+        # Only the last overlapping capture brings the drawing back, so a rapid
+        # re-tap can't put it on screen while the next screenshot is taken.
+        self._hidden_captures = max(0, self._hidden_captures - 1)
+        if self._hidden_captures == 0:
+            self.overlay.unhide()
+
+    @objc.python_method
+    def _unhide_if_stuck(self) -> None:
+        if self._hidden_captures and not self.overlay.window.isVisible():
+            log.warning("snapshot slow; showing the drawing again")
+            self._hidden_captures = 0
+            self.overlay.unhide()
 
     @objc.python_method
     def submit(self, text: str) -> None:

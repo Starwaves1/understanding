@@ -44,6 +44,11 @@ class _JSLog(NSObject):
         log.warning("renderer %s", message.body())
 
 
+
+from understanding.primitives import Primitive
+from understanding.protocol import Op
+
+
 class _JSLayout(NSObject):
     """Receives the card's viewport rect (or null) so the close button can follow it."""
 
@@ -60,9 +65,6 @@ class _CloseTarget(NSObject):
     def close_(self, _sender) -> None:
         if self.callback is not None:
             self.callback()
-
-from understanding.primitives import Primitive
-from understanding.protocol import Op
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 OVERLAY_LEVEL = 1000  # above normal and floating windows, below our prompt panel
@@ -136,6 +138,7 @@ class Overlay:
         w.orderFrontRegardless()
         self.has_content = False
         self.safe_top = 38.0
+        self._card_rect = None
         self._close = self._make_close_button()
         self.on_close = None  # set by the app: what the ✕ button does
         # Bumped by clear(). Ops already queued for the main thread carry the
@@ -158,7 +161,7 @@ class Overlay:
         p.setBackgroundColor_(NSColor.clearColor())
         p.setLevel_(OVERLAY_LEVEL + 1)
         p.setHidesOnDeactivate_(False)
-        p.setSharingType_(NSWindowSharingReadOnly)
+        p.setSharingType_(NSWindowSharingNone)  # captures show the drawing, not the control
         p.setCollectionBehavior_(
             NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary
         )
@@ -184,6 +187,7 @@ class Overlay:
 
     def card_moved(self, rect) -> None:
         """Pin the ✕ to the card's top-right corner (viewport coords → screen)."""
+        self._card_rect = rect  # remembered so unhide() can restore the ✕ without a JS round trip
         if not self.has_content or not self.window.isVisible():
             self._close.orderOut_(None)
             return
@@ -205,7 +209,7 @@ class Overlay:
     def unhide(self) -> None:
         self.window.orderFrontRegardless()
         if self.has_content:
-            self.js("U.reportLayout()")
+            self.card_moved(self._card_rect)
 
     def js(self, code: str) -> None:
         self.web.evaluateJavaScript_completionHandler_(code, None)
